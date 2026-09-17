@@ -278,6 +278,33 @@ local BANKS = {
 
 -- ─── Служебное ──────────────────────────────────────────────────────────────
 
+-- Ручка живого прогресс-бара. Нужна Cleanup: если прогон прервут на середине,
+-- бар останется висеть на экране, пока его кто-нибудь не погасит.
+local LIVE_PROGRESS = nil
+
+local function progressStart(total)
+  local ok = pcall(function()
+    LIVE_PROGRESS = gma.gui.progress.start(PLUGIN)
+    gma.gui.progress.setrange(LIVE_PROGRESS, 0, total)
+  end)
+  if not ok then LIVE_PROGRESS = nil end
+  return LIVE_PROGRESS
+end
+
+local function progressStop()
+  if not LIVE_PROGRESS then return end
+  pcall(function() gma.gui.progress.stop(LIVE_PROGRESS) end)
+  LIVE_PROGRESS = nil
+end
+
+local function progressStep(i, total, text)
+  if not LIVE_PROGRESS then return end
+  pcall(function()
+    gma.gui.progress.settext(LIVE_PROGRESS, string.format("%s (%d/%d)", text, i, total))
+    gma.gui.progress.set(LIVE_PROGRESS, i)
+  end)
+end
+
 local function say(fmt, ...)
   gma.echo(PLUGIN .. ": " .. string.format(fmt, ...))
   gma.feedback(PLUGIN .. ": " .. string.format(fmt, ...))
@@ -500,12 +527,7 @@ local function createSet(task)
   say("банк «%s», набор «%s», %d шт.%s → %s Thru %d",
       bank.key, set.title, #members, paramNote, address(bank, first), last)
 
-  local bar = nil
-  local okBar = pcall(function()
-    bar = gma.gui.progress.start(PLUGIN)
-    gma.gui.progress.setrange(bar, 0, #members)
-  end)
-  if not okBar then bar = nil end
+  progressStart(#members)
 
   local written = 0
   for i, item in ipairs(plan) do
@@ -522,7 +544,7 @@ local function createSet(task)
     -- дальше идти незачем — самый дорогой сценарий здесь тот, где команды
     -- проходят без ошибок, а пул остаётся пустым.
     if i == 1 and not exists(bank, idx) then
-      if bar then pcall(function() gma.gui.progress.stop(bar) end) end
+      progressStop()
       say("остановлено: контрольный объект %s не создан", address(bank, idx))
       msg(PLUGIN .. " — остановлено", string.format(
         "Контрольный объект %s после записи не найден.\n\n%s\n\n" ..
@@ -537,16 +559,11 @@ local function createSet(task)
     end
 
     written = written + 1
-    if bar then
-      pcall(function()
-        gma.gui.progress.settext(bar, string.format("%s (%d/%d)", name, i, #members))
-        gma.gui.progress.set(bar, i)
-      end)
-    end
+    progressStep(i, #members, name)
   end
 
   if bank.kind == "preset" then gma.cmd("Clear") end
-  if bar then pcall(function() gma.gui.progress.stop(bar) end) end
+  progressStop()
 
   local rollback = string.format("Delete %s Thru %d", address(bank, first), last)
   say("готово: %d объектов. Откат — %s", written, rollback)
@@ -701,4 +718,12 @@ local function Main()
   createSet(task)
 end
 
-return Main
+-- Cleanup вызывается консолью при остановке плагина. Обязательным он не
+-- является — в документации показан возврат одной функции, — но принят в MA2
+-- как вторая половина точки входа. Здесь он гасит прогресс-бар: без этого
+-- прерванный на середине прогон оставил бы его висеть на экране.
+local function Cleanup()
+  progressStop()
+end
+
+return Main, Cleanup

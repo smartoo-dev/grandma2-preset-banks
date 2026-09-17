@@ -92,17 +92,27 @@ MA3 строку в строку дала бы неработающий код.
 
 ## Установка
 
-**1.** Скопируйте `presetbanks.lua` в папку плагинов:
+**1.** Скопируйте в папку плагинов **оба** файла — `presetbanks.xml` и
+`presetbanks.lua`. XML только регистрирует плагин, код лежит в `.lua`, и они
+должны находиться рядом.
 
 | Платформа | Путь |
 |---|---|
-| Windows / onPC | `C:\ProgramData\MA Lighting Technologies\grandma\gma2_V_<версия>\plugins\` |
-| Консоль | тот же каталог `plugins` на внутреннем диске или USB |
+| Консоль | `/grandMA2/gma2_V_X.X.X/plugins/` |
+| Windows (onPC) | `C:\ProgramData\MA Lighting Technologies\grandma\gma2_V_X.X.X\plugins\` |
+| macOS (onPC) | `~/MALightingTechnology/gma/gma2_V_X.X.X/plugins/` |
 
-Точное имя каталога зависит от версии ПО — оно содержит номер версии.
+`X.X.X` — номер вашей версии ПО, например `3.9.60`. Путь можно узнать на самой
+консоли: наберите `cd plugins` в командной строке.
 
-**2.** На консоли откройте пул Plugins, отредактируйте пустую ячейку и укажите
-в ней имя файла `presetbanks.lua` и имя плагина `PresetBanks`.
+**2.** Импортируйте:
+
+```
+Import "presetbanks.xml" At Plugin 2
+```
+
+Номер — свободная ячейка пула Plugins. В XML по умолчанию стоит `index="2"`,
+но команда `At Plugin <n>` его перекрывает, так что берите любую свободную.
 
 **3.** Проверка:
 
@@ -112,9 +122,29 @@ SetVar $PB "list" ; Plugin "PresetBanks"
 
 Откроется окно со списком банков.
 
-> XML-обёртки для импорта в комплекте нет намеренно: схему файла плагина MA2
-> я не проверял, а выдумывать её в файле, который пойдёт на консоль, — плохая
-> идея. Присвоение `.lua` вручную работает и документировано.
+### Если импорт ругается на версию
+
+В `presetbanks.xml` версия схемы указана как 3.2.2 — это значение с реально
+работающего опубликованного плагина, и MA2 к более старым номерам терпима. Если
+ваша консоль всё же возражает, приведите три места к своей версии. Для 3.9.60:
+
+```xml
+xsi:schemaLocation="… http://schemas.malighting.de/grandma2/xml/3.9.60/MA.xsd"
+major_vers="3" minor_vers="9" stream_vers="60"
+```
+
+Надёжный способ узнать нужные числа — выгрузить с консоли любой пустой плагин
+(`Export` на ячейке пула) и переписать заголовок из полученного файла.
+
+### Обновление после правки .lua
+
+Консоль держит загруженную копию. Макрос для перезагрузки:
+
+```
+Delete Plugin 2
+Import "presetbanks.xml" At Plugin 2
+ReloadPlugins /nc
+```
 
 ---
 
@@ -324,6 +354,17 @@ lua5.4 test/stub-run.lua busy         # диапазон занят
 
 ```bash
 luac5.4 -p presetbanks.lua test/stub-run.lua
+python3 -c "import xml.dom.minidom; xml.dom.minidom.parse('presetbanks.xml')"
+```
+
+### Структура
+
+```
+├── presetbanks.xml        обёртка для импорта, ссылается на .lua
+├── presetbanks.lua        движок + банки
+├── test/
+│   └── stub-run.lua       заглушки таблицы gma, 14 сценариев
+└── README.md
 ```
 
 **Что заглушки не проверяют:** разбор команд консолью, движок эффектов, патч,
@@ -376,3 +417,6 @@ MIT — см. [LICENSE](LICENSE).
 - [Форум MA: edit effect lines through macros](https://forum.malighting.com/forum/thread/65229-edit-effect-lines-through-macros/) — `sin = 8, cos = 9, pwm = 4`
 - [Форум MA: Controlling Attributes Via Commandline](https://forum.malighting.com/forum/thread/60303-controlling-attributes-via-commandline/) — `Attribute "Pan" At 5`, `ColorRGB1..3`
 - [Adjusting Attribute Values via the Command Line — ACT](https://support.actentertainment.com/knowledgeBase/2635342)
+- [MA2 Plugins — Installation](https://mintlify.wiki/HugoOtth/MA2plugins/installation) — шаблон XML, пути к папке плагинов, команда Import
+- [ColorPicker.xml](https://github.com/egidiusmengelberg/grandma2_colorpicker_plugin/blob/master/ColorPicker.xml) — работающий опубликованный файл плагина, по которому сверена схема
+- [Форум MA: Lua Plugin Development Process](https://forum.malighting.com/forum/thread/59285-lua-plugin-development-process/) — Start/Cleanup, макрос перезагрузки плагина
